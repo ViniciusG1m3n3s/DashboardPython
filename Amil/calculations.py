@@ -720,7 +720,15 @@ def calcular_tmo_por_carteira(df):
     df_atualizacao.rename(columns={'TEMPO MÉDIO OPERACIONAL': 'TMO Atualização'}, inplace=True)
 
     # Calcular TMO para a fila "Distribuição" considerando apenas "REALIZADO"
-    df_distribuicao = df[(df['FILA'] == 'Distribuição') & (df['FINALIZAÇÃO'] == 'REALIZADO')]
+    filas_distribuicao = [
+        'DISTRIBUIÇÃO - AMIL + JV', 
+        'DISTRIBUIÇÃO - JV CÍVEL', 
+        'DISTRIBUIÇÃO - PRÉ CADASTRO', 
+        'DISTRIBUIÇÃO - PRÉ CADASTRO - JV', 
+        'DISTRIBUICAO'
+    ]
+    
+    df_distribuicao = df[df['FILA'].isin(filas_distribuicao) & (df['FINALIZAÇÃO'] == 'REALIZADO')]
 
     if not df_distribuicao.empty:
         tmo_distribuicao = df_distribuicao.groupby('FILA').agg(
