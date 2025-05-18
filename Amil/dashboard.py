@@ -5,6 +5,7 @@ from io import BytesIO
 from .calculations import calcular_tmo_equipe_cadastro, contar_desvios, exibir_cadastro_atualizacao_por_modulo, calcular_cadastro_atualizacao_por_modulo, obter_maior_quantidade_por_fila, exibir_grafico_desvios_auditoria, exibir_melhor_analista_por_fila, exibir_maior_quantidade_por_fila, calcular_e_exibir_tmo_cadastro_atualizacao_por_fila, format_timedelta_hms,exibir_grafico_tmo_analista_por_mes, format_timedelta_grafico_tmo_analista, obter_melhor_analista_por_fila, exibir_grafico_tempo_ocioso_por_dia, calcular_producao_email_detalhada, calcular_producao_agrupada, exportar_planilha_com_tmo_completo, gerar_relatorio_html, download_html, download_html_tmo, gerar_relatorio_html_tmo,  calcular_tmo_equipe_atualizado, calcular_produtividade_diaria, calcular_tmo_por_dia_cadastro, calcular_produtividade_diaria_cadastro, calcular_tmo_por_dia, convert_to_timedelta_for_calculations, convert_to_datetime_for_calculations, save_data, load_data, format_timedelta, calcular_ranking, calcular_filas_analista, calcular_metrica_analista, calcular_carteiras_analista,exportar_relatorio_detalhado_por_analista, get_points_of_attention, calcular_tmo_por_carteira, calcular_tmo, calcular_e_exibir_tmo_por_fila, calcular_tmo_por_mes, exibir_tmo_por_mes, exibir_dataframe_tmo_formatado, export_dataframe, calcular_tempo_ocioso_por_analista, calcular_melhor_tmo_por_dia, calcular_melhor_dia_por_cadastro, exibir_tmo_por_mes_analista, exportar_planilha_com_tmo, calcular_tmo_geral, calcular_tmo_cadastro, calcular_tempo_ocioso, gerar_relatorio_tmo_completo
 from .charts import plot_produtividade_diaria, plot_grafico_desvios, plot_tmo_por_dia_cadastro, plot_tmo_por_dia_cadastro, exibir_grafico_tp_causa, plot_produtividade_diaria_cadastros, plot_tmo_por_dia, plot_status_pie, grafico_tmo, grafico_status_analista, exibir_grafico_filas_realizadas, exibir_grafico_tmo_por_dia, exibir_grafico_quantidade_por_dia
 from datetime import datetime
+import difflib
 from Amil.diario import diario
 
 def dashboard():
@@ -199,7 +200,7 @@ def dashboard():
 
     # Lógica para exibir o logo baseado no tema
     if ms.themes["current_theme"] == "light":
-        st.logo("https://finchsolucoes.com.br/img/eb28739f-bef7-4366-9a17-6d629cf5e0d9.png")  # Logo para o tema claro
+        st.logo("https://finchsolucoes.com.br/img/1d8d2f6c-3a6e-4e2e-8a7a-3f9b9b3e0d5d.png")  # Logo para o tema claro
     else:
         st.logo("https://finchsolucoes.com.br/img/fefdd9df-1bd3-4107-ab22-f06d392c1f55.png")  # Logo para o tema escuro
 
@@ -310,7 +311,7 @@ def dashboard():
         
         with st.expander("Cadastros vs Atualizações por Módulo"):
             exibir_cadastro_atualizacao_por_modulo(df_total)
-
+            
         with st.expander("Produção - Detalhamento Grupo E-MAIL"):
             df_producao_email = calcular_producao_email_detalhada(df_total)
             if isinstance(df_producao_email, str):
@@ -643,16 +644,6 @@ def dashboard():
                             st.metric("Melhor Dia de Cadastros", quantidade_cadastro, f"Dia {melhor_dia_cadastro.strftime('%d/%m/%Y')}")
                     else:
                         st.metric("Melhor Dia de Cadastros", "Sem dados")
-
-        # Exibe o DataFrame estilizado com as filas realizadas pelo analista
-        with st.container(border=True):
-            st.subheader(f"Filas Realizadas")
-            calcular_e_exibir_tmo_por_fila(
-                df_analista=df_analista, 
-                analista_selecionado=analista_selecionado, 
-                format_timedelta=format_timedelta, 
-                st=st
-            )
             
         with st.expander("TMO por Fila - Cadastro e Atualização"):
             calcular_e_exibir_tmo_cadastro_atualizacao_por_fila(df_analista, format_timedelta_hms, st)
@@ -662,8 +653,22 @@ def dashboard():
                 exibir_grafico_tempo_ocioso_por_dia(df_analista, analista_selecionado, custom_colors, st)
                 df_tempo_ocioso = calcular_tempo_ocioso_por_analista(df_analista)
                 st.dataframe(df_tempo_ocioso, hide_index=True, use_container_width=True)
-                
-        
+                df_tempo_ocioso["Tempo Ocioso Formatado"] = pd.to_timedelta(df_tempo_ocioso["Tempo Ocioso Formatado"])
+                # total de segundos do timedelta
+                media_tempo_ocioso = df_tempo_ocioso["Tempo Ocioso Formatado"].mean()
+                total_segundos = int(media_tempo_ocioso.total_seconds())
+
+                # converte para horas, minutos e segundos
+                horas = total_segundos // 3600
+                minutos = (total_segundos % 3600) // 60
+                segundos = total_segundos % 60
+
+                # formata como 00:06:34
+                tempo_formatado = f"{horas:02}:{minutos:02}:{segundos:02}"
+
+                with st.container(border=True):
+                    st.metric("Média de Tempo Ocioso", tempo_formatado)
+                    
         with st.expander("Evolução TMO"):
             st.subheader(f"Tempo Médio Operacional Mensal")
             exibir_grafico_tmo_analista_por_mes(df_analista, analista_selecionado)
@@ -708,9 +713,47 @@ def dashboard():
                 exibir_grafico_tp_causa(df_analista, analista_selecionado, custom_colors, st)
                 
     elif opcao_selecionada == "Diário de Bordo":
-
+        
         st.header("provisório")
 
+        def responder_dados(pergunta, df):
+            pergunta = pergunta.lower()
+
+            # Lista de nomes de analistas conhecidos no DataFrame
+            analistas = df['USUÁRIO QUE CONCLUIU A TAREFA'].dropna().unique()
+
+            # Verificar se a pergunta fala de "tmo"
+            if "tmo" in pergunta or "tempo médio" in pergunta:
+                for nome in analistas:
+                    if nome.lower() in pergunta:
+                        tmo = df[df['USUÁRIO QUE CONCLUIU A TAREFA'].str.lower() == nome.lower()]['TEMPO MÉDIO OPERACIONAL'].mean()
+                        return f"O TMO médio da {nome} é {tmo:.2f}."
+
+                # Caso não encontre o nome, mas peça tmo geral
+                if "geral" in pergunta or "todos" in pergunta:
+                    tmo = df['TEMPO MÉDIO OPERACIONAL'].mean()
+                    return f"O TMO médio geral é {tmo:.2f}."
+
+            # Pergunta sobre produtividade
+            elif "mais produtivo" in pergunta or "quem fez mais" in pergunta:
+                top = df['USUÁRIO QUE CONCLUIU A TAREFA'].value_counts().idxmax()
+                return f"O analista mais produtivo foi: {top}."
+
+            # Total de tarefas
+            elif "quantas tarefas" in pergunta or "total de tarefas" in pergunta:
+                total = len(df)
+                return f"O total de tarefas realizadas foi: {total}."
+
+            return "Desculpe, ainda não sei responder essa pergunta. Tente reformular ou peça ajuda a um analista."
+        
+        pergunta_usuario = st.chat_input("Envie sua dúvida sobre os dados...")
+
+        if pergunta_usuario:
+            st.chat_message("user").write(pergunta_usuario)
+
+            resposta = responder_dados(pergunta_usuario, df_total)
+            st.chat_message("assistant").write(resposta)
+            
     if st.sidebar.button("Logout", icon=":material/logout:"):
         st.session_state.logado = False
         st.session_state.usuario_logado = None

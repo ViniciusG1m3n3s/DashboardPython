@@ -438,7 +438,6 @@ def calcular_metrica_analista(df_analista):
 
 def calcular_tempo_ocioso_por_analista(df):
     try:
-        # Converte as colunas de data para datetime, tratando erros
         df['DATA DE INÍCIO DA TAREFA'] = pd.to_datetime(
             df['DATA DE INÍCIO DA TAREFA'], format='%d/%m/%Y %H:%M:%S', errors='coerce'
         )
@@ -446,34 +445,29 @@ def calcular_tempo_ocioso_por_analista(df):
             df['DATA DE CONCLUSÃO DA TAREFA'], format='%d/%m/%Y %H:%M:%S', errors='coerce'
         )
 
-        # Filtrar valores nulos e resetar index
         df = df.dropna(subset=['DATA DE INÍCIO DA TAREFA', 'DATA DE CONCLUSÃO DA TAREFA']).reset_index(drop=True)
-
-        # Ordena os dados por usuário e data de início da tarefa (sem considerar fila)
         df = df.sort_values(by=['USUÁRIO QUE CONCLUIU A TAREFA', 'DATA DE INÍCIO DA TAREFA']).reset_index(drop=True)
-
-        # Calcula o próximo horário de início da tarefa por usuário (sem considerar fila)
         df['PRÓXIMA_TAREFA'] = df.groupby(['USUÁRIO QUE CONCLUIU A TAREFA'])['DATA DE INÍCIO DA TAREFA'].shift(-1)
-
-        # Calcula o tempo ocioso entre a conclusão de uma tarefa e o início da próxima
         df['TEMPO OCIOSO'] = df['PRÓXIMA_TAREFA'] - df['DATA DE CONCLUSÃO DA TAREFA']
+        df['TEMPO OCIOSO'] = df['TEMPO OCIOSO'].apply(
+            lambda x: x if pd.notnull(x) and pd.Timedelta(0) < x <= pd.Timedelta(hours=1) else pd.Timedelta(0)
+        )
 
-        # Remove valores negativos ou muito grandes (exemplo: trocas de turno)
-        df['TEMPO OCIOSO'] = df['TEMPO OCIOSO'].apply(lambda x: x if pd.notnull(x) and pd.Timedelta(0) < x <= pd.Timedelta(hours=1) else pd.Timedelta(0))
-
-        # Agrupa os tempos ociosos por usuário e dia de conclusão, somando todas as filas
         df_soma_ocioso = df.groupby(['USUÁRIO QUE CONCLUIU A TAREFA', df['DATA DE CONCLUSÃO DA TAREFA'].dt.date])['TEMPO OCIOSO'].sum().reset_index()
-
-        # Renomeia colunas para melhor entendimento
         df_soma_ocioso = df_soma_ocioso.rename(columns={
             'DATA DE CONCLUSÃO DA TAREFA': 'Data',
             'TEMPO OCIOSO': 'Tempo Ocioso'
         })
 
-        # Formata o tempo ocioso total como string
-        df_soma_ocioso['Tempo Ocioso'] = df_soma_ocioso['Tempo Ocioso'].astype(str).str.split("days").str[-1].str.strip()
+        # 👉 Formatação para visualização
+        df_soma_ocioso['Tempo Ocioso Formatado'] = df_soma_ocioso['Tempo Ocioso'].astype(str).str.split("days").str[-1].str.strip()
 
-        return df_soma_ocioso[['USUÁRIO QUE CONCLUIU A TAREFA', 'Data', 'Tempo Ocioso']]
+        # 👉 Calculando média por analista (em minutos)
+        df_soma_ocioso['Tempo Ocioso em Minutos'] = df_soma_ocioso['Tempo Ocioso'].dt.total_seconds() / 60
+        media_ociosa_por_analista = df_soma_ocioso.groupby('USUÁRIO QUE CONCLUIU A TAREFA')['Tempo Ocioso em Minutos'].mean().reset_index()
+        media_ociosa_por_analista = media_ociosa_por_analista.rename(columns={'Tempo Ocioso em Minutos': 'Média (min)'})
+
+        return df_soma_ocioso[['USUÁRIO QUE CONCLUIU A TAREFA', 'Data', 'Tempo Ocioso Formatado']]
 
     except Exception as e:
         return pd.DataFrame({'Erro': [f'Erro: {str(e)}']})
@@ -502,7 +496,7 @@ def exibir_grafico_tempo_ocioso_por_dia(df_analista, analista_selecionado, custo
     df_ocioso = calcular_tempo_ocioso_por_analista(df_analista)
 
     # Converter a coluna 'Tempo Ocioso' para timedelta para cálculos
-    df_ocioso['Tempo Ocioso'] = pd.to_timedelta(df_ocioso['Tempo Ocioso'], errors='coerce')
+    df_ocioso['Tempo Ocioso'] = pd.to_timedelta(df_ocioso['Tempo Ocioso Formatado'], errors='coerce')
 
     # Filtrar apenas o analista selecionado
     df_ocioso = df_ocioso[df_ocioso['USUÁRIO QUE CONCLUIU A TAREFA'] == analista_selecionado]
@@ -2052,7 +2046,6 @@ def gerar_relatorio_html_tmo(df, data_inicio, data_fim):
     """
 
     return html_content
-
 
 def download_html_tmo(df, data_inicio, data_fim):
     """
