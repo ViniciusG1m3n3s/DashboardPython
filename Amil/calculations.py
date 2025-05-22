@@ -2063,6 +2063,145 @@ def download_html_tmo(df, data_inicio, data_fim):
         mime="text/html"
     )
 
+from datetime import timedelta
+
+def formatar_tempo(tempo):
+    if pd.isnull(tempo):
+        return "N/A"
+    if isinstance(tempo, str):
+        return tempo
+    total_seconds = int(tempo.total_seconds())
+    horas = total_seconds // 3600
+    minutos = (total_seconds % 3600) // 60
+    segundos = total_seconds % 60
+    return f"{horas:02}:{minutos:02}:{segundos:02}"
+
+def gerar_ficha_html_analista(df_analista, nome_analista, data_inicio, data_fim):
+    df_analista = df_analista[
+        (df_analista['DATA DE CONCLUSÃO DA TAREFA'].dt.date >= data_inicio) &
+        (df_analista['DATA DE CONCLUSÃO DA TAREFA'].dt.date <= data_fim)
+    ]
+
+    tmo_cadastro = df_analista[df_analista['FINALIZAÇÃO'] == 'CADASTRADO']['TEMPO MÉDIO OPERACIONAL'].mean()
+    tmo_atualizado = df_analista[df_analista['FINALIZAÇÃO'] == 'ATUALIZADO']['TEMPO MÉDIO OPERACIONAL'].mean()
+
+    df_ocioso = calcular_tempo_ocioso_por_analista(df_analista)
+    def converter_para_timedelta(valor):
+        try:
+            h, m, s = map(int, valor.split(":"))
+            return timedelta(hours=h, minutes=m, seconds=s)
+        except:
+            return pd.NaT  # caso o valor esteja malformado
+
+    serie_ociosa = df_ocioso[df_ocioso['USUÁRIO QUE CONCLUIU A TAREFA'] == nome_analista]['Tempo Ocioso Formatado']
+    serie_ociosa = serie_ociosa.dropna().apply(converter_para_timedelta)
+    tempo_ocioso_medio = serie_ociosa.mean()
+
+    df_filas = df_analista[df_analista['FINALIZAÇÃO'].isin(['CADASTRADO', 'ATUALIZADO'])].copy()
+    df_tmo_fila = df_filas.groupby('FILA')['TEMPO MÉDIO OPERACIONAL'].mean().reset_index()
+    df_tmo_fila['TEMPO MÉDIO OPERACIONAL'] = df_tmo_fila['TEMPO MÉDIO OPERACIONAL'].apply(formatar_tempo)
+
+    tabela_filas = ''.join(
+        f"<tr><td>{row['FILA']}</td><td>{row['TEMPO MÉDIO OPERACIONAL']}</td></tr>"
+        for _, row in df_tmo_fila.iterrows()
+    )
+
+    html = f"""
+    <!DOCTYPE html>
+    <html lang="pt-br">
+    <head>
+        <meta charset="UTF-8">
+        <title>Ficha de Desempenho - {nome_analista}</title>
+        <style>
+            body {{
+                font-family: 'Segoe UI', sans-serif;
+                background-color: #f7f9fc;
+                color: #333;
+                margin: 0;
+                padding: 20px;
+            }}
+            .container {{
+                max-width: 900px;
+                margin: 0 auto;
+            }}
+            h1 {{
+                font-size: 28px;
+                color: #1a1a1a;
+            }}
+            .info-cards {{
+                display: flex;
+                gap: 20px;
+                flex-wrap: wrap;
+                margin-top: 20px;
+            }}
+            .card {{
+                flex: 1;
+                background-color: #ffffff;
+                border-radius: 12px;
+                padding: 20px;
+                box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+                min-width: 200px;
+            }}
+            .card-title {{
+                font-size: 14px;
+                color: #999;
+                margin-bottom: 5px;
+            }}
+            .card-value {{
+                font-size: 20px;
+                font-weight: bold;
+                color: #0056D2;
+            }}
+            table {{
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 30px;
+            }}
+            th, td {{
+                padding: 12px;
+                border: 1px solid #e5e5e5;
+                text-align: left;
+            }}
+            th {{
+                background-color: #0056D2;
+                color: white;
+                font-weight: normal;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Ficha de Desempenho do Analista</h1>
+            <p><strong>Nome:</strong> {nome_analista}</p>
+            <p><strong>Período:</strong> {data_inicio.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')}</p>
+            <div class="info-cards">
+                <div class="card">
+                    <div class="card-title">TMO de Cadastro</div>
+                    <div class="card-value">{formatar_tempo(tmo_cadastro)}</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">TMO de Atualização</div>
+                    <div class="card-value">{formatar_tempo(tmo_atualizado)}</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">Tempo Médio Ocioso</div>
+                    <div class="card-value">{formatar_tempo(tempo_ocioso_medio)}</div>
+                </div>
+            </div>
+            <h2 style="margin-top: 40px;">TMO por Fila</h2>
+            <table>
+                <tr>
+                    <th>Fila</th>
+                    <th>TMO Médio</th>
+                </tr>
+                {tabela_filas}
+            </table>
+        </div>
+    </body>
+    </html>
+    """
+    return html
+
 # FILAS - INCIDENTE, CADASTRO ROBO E CADASTRO ANS - CONTAGEM DA QUANTIDADE DE TAREFAS QEU ENTRARAM POR DIA (PANDAS)
 # CRIAÇÃO DO PROTOCOLO -> .cont()
 # finalização NA - TIRAR A SIUTAÇÃO COMO CANCELADA E VERIFICAR DESTINO DA TAREFA
