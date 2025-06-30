@@ -259,39 +259,533 @@ def calcular_ranking(df_total, selected_users):
     # Filtra o DataFrame com os usuários selecionados
     df_filtered = df_total[df_total['USUÁRIO QUE CONCLUIU A TAREFA'].isin(selected_users)]
 
+    # Agrupa e conta por tipo de finalização
     df_ranking = df_filtered.groupby('USUÁRIO QUE CONCLUIU A TAREFA').agg(
-
-        Finalizado=('FINALIZAÇÃO', lambda x: x[x == 'CADASTRADO'].count()),
-        Distribuido=('FINALIZAÇÃO', lambda x: x[x == 'REALIZADO'].count()),
-        Atualizado=('FINALIZAÇÃO', lambda x: x[x == 'ATUALIZADO'].count())
+        Finalizado=('FINALIZAÇÃO', lambda x: (x == 'CADASTRADO').sum()),
+        Distribuido=('FINALIZAÇÃO', lambda x: (x == 'REALIZADO').sum()),
+        Atualizado=('FINALIZAÇÃO', lambda x: (x == 'ATUALIZADO').sum())
     ).reset_index()
-    df_ranking['Total'] =df_ranking['Finalizado'] + df_ranking['Distribuido'] + df_ranking['Atualizado']
-    df_ranking = df_ranking.sort_values(by  ='Total', ascending=False).reset_index(drop=True)
-    df_ranking.index += 1
-    df_ranking.index.name = 'Posição'
+
+    # Total
+    df_ranking['Total'] = df_ranking['Finalizado'] + df_ranking['Distribuido'] + df_ranking['Atualizado']
+
+    # Renomeia a coluna de usuário
+    df_ranking.rename(columns={
+        'USUÁRIO QUE CONCLUIU A TAREFA': 'Analista'
+    }, inplace=True)
+
+    # Ordena pelo total
+    df_ranking = df_ranking.sort_values(by='Total', ascending=False).reset_index(drop=True)
+
+    # Adiciona coluna de posição (como coluna real)
+    df_ranking.insert(0, 'Posição', range(1, len(df_ranking) + 1))
+
+    # Define tamanho dos quartis
+    num_analistas = len(df_ranking)
+    quartil_size = 4 if num_analistas > 12 else math.ceil(num_analistas / 4)
+
+    # Estilização por quartis
+    def apply_dynamic_quartile_styles(row):
+        if row['Posição'] <= quartil_size:
+            color = 'rgba(135, 206, 250, 0.4)'  # Azul
+        elif row['Posição'] <= 2 * quartil_size:
+            color = 'rgba(144, 238, 144, 0.4)'  # Verde
+        elif row['Posição'] <= 3 * quartil_size:
+            color = 'rgba(255, 255, 102, 0.4)'  # Amarelo
+        else:
+            color = 'rgba(255, 99, 132, 0.4)'   # Vermelho
+        return ['background-color: {}'.format(color)] * len(row)
+
+    # Aplica estilos com alinhamento central opcional
+    styled_df_ranking = df_ranking.style \
+        .apply(apply_dynamic_quartile_styles, axis=1) \
+        .format({
+            'Finalizado': '{:.0f}',
+            'Distribuido': '{:.0f}',
+            'Atualizado': '{:.0f}',
+            'Total': '{:.0f}'
+        }) \
+        .set_table_styles([
+            {'selector': 'th', 'props': [('text-align', 'center')]},
+            {'selector': 'td', 'props': [('text-align', 'center')]},
+            {'selector': 'th.col0', 'props': [('width', '80px')]},
+            {'selector': 'td.col0', 'props': [('width', '80px')]}
+        ])
+
+    return styled_df_ranking
+
+def calcular_ranking_atualizacao(df_total, selected_users):
+    # Filtra apenas os cadastros válidos (excluindo filas irrelevantes)
+    df_filtered = df_total[
+        (df_total['FINALIZAÇÃO'] == 'ATUALIZADO') &
+        (df_total['USUÁRIO QUE CONCLUIU A TAREFA'].isin(selected_users))
+    ]
+
+    # Agrupa por usuário: conta cadastros e calcula TMO médio
+    df_ranking = df_filtered.groupby('USUÁRIO QUE CONCLUIU A TAREFA').agg(
+        Atualizados=('FINALIZAÇÃO', 'count'),
+        TMO_Médio=('TEMPO MÉDIO OPERACIONAL', 'mean')
+    ).reset_index()
+
+    df_ranking['Total'] = df_ranking['Atualizados']
+
+    # Renomeia a coluna de usuário
+    df_ranking.rename(columns={
+        'USUÁRIO QUE CONCLUIU A TAREFA': 'Analista',
+        'TMO_Médio': 'TMO Médio'
+    }, inplace=True)
+
+    # Ordena pelo total
+    df_ranking = df_ranking.sort_values(by='Total', ascending=False).reset_index(drop=True)
+
+    # Adiciona a coluna Posição como coluna real (não índice)
+    df_ranking.insert(0, 'Posição', range(1, len(df_ranking) + 1))
 
     # Define o tamanho dos quartis
     num_analistas = len(df_ranking)
     quartil_size = 4 if num_analistas > 12 else math.ceil(num_analistas / 4)
 
-    # Função de estilo para os quartis dinâmicos
+    # Estilização por quartis
     def apply_dynamic_quartile_styles(row):
-        if row.name <= quartil_size:
-            color = 'rgba(135, 206, 250, 0.4)'  # Azul vibrante translúcido (primeiro quartil)
-        elif quartil_size < row.name <= 2 * quartil_size:
-            color = 'rgba(144, 238, 144, 0.4)'  # Verde vibrante translúcido (segundo quartil)
-        elif 2 * quartil_size < row.name <= 3 * quartil_size:
-            color = 'rgba(255, 255, 102, 0.4)'  # Amarelo vibrante translúcido (terceiro quartil)
+        if row['Posição'] <= quartil_size:
+            color = 'rgba(135, 206, 250, 0.4)'  # Azul
+        elif row['Posição'] <= 2 * quartil_size:
+            color = 'rgba(144, 238, 144, 0.4)'  # Verde
+        elif row['Posição'] <= 3 * quartil_size:
+            color = 'rgba(255, 255, 102, 0.4)'  # Amarelo
         else:
-            color = 'rgba(255, 99, 132, 0.4)'  # Vermelho vibrante translúcido (quarto quartil)
-        return ['background-color: {}'.format(color) for _ in row]
+            color = 'rgba(255, 99, 132, 0.4)'   # Vermelho
+        return ['background-color: {}'.format(color)] * len(row)
 
-    # Aplicar os estilos e retornar o DataFrame
-    styled_df_ranking = df_ranking.style.apply(apply_dynamic_quartile_styles, axis=1).format(
-        {'Andamento': '{:.0f}', 'Finalizado': '{:.0f}', 'Reclassificado': '{:.0f}', 'Total': '{:.0f}'}
-    )
+    # Formatação do TMO
+    def format_timedelta(td):
+        if pd.isna(td):
+            return "00:00:00"
+        total_seconds = int(td.total_seconds())
+        return f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}:{total_seconds % 60:02d}"
 
-    return styled_df_ranking
+    df_ranking['TMO Médio'] = df_ranking['TMO Médio'].apply(format_timedelta)
+
+    # Estiliza com formatação
+    styled_df_ranking_cadastro = df_ranking.style \
+        .apply(apply_dynamic_quartile_styles, axis=1) \
+        .format({
+            'Cadastros': '{:.0f}',
+            'Total': '{:.0f}',
+            'TMO Médio': '{}'
+        })
+
+    return styled_df_ranking_cadastro
+
+def calcular_ranking_cadastro_judicial(df_total, selected_users):
+    # Filtra apenas os cadastros válidos (excluindo filas irrelevantes)
+    df_filtered = df_total[
+        (df_total['FINALIZAÇÃO'] == 'CADASTRADO') &
+        (df_total['USUÁRIO QUE CONCLUIU A TAREFA'].isin(selected_users)) &
+        (~df_total['FILA'].isin([
+            'OFICIOS',
+            'PRE CADASTRO E DIJUR',
+            'PRE CADASTRO E DIJUR - JV',
+            'CADASTRO DE ÓRGÃOS E OFÍCIOS',
+            'CADASTRO ANS (AUTO DE INFRAÇÃO)'
+        ]))
+    ]
+
+    # Agrupa por usuário: conta cadastros e calcula TMO médio
+    df_ranking = df_filtered.groupby('USUÁRIO QUE CONCLUIU A TAREFA').agg(
+        Cadastros=('FINALIZAÇÃO', 'count'),
+        TMO_Médio=('TEMPO MÉDIO OPERACIONAL', 'mean')
+    ).reset_index()
+
+    df_ranking['Total'] = df_ranking['Cadastros']
+
+    # Renomeia a coluna de usuário
+    df_ranking.rename(columns={
+        'USUÁRIO QUE CONCLUIU A TAREFA': 'Analista',
+        'TMO_Médio': 'TMO Médio'
+    }, inplace=True)
+
+    # Ordena pelo total
+    df_ranking = df_ranking.sort_values(by='Total', ascending=False).reset_index(drop=True)
+
+    # Adiciona a coluna Posição como coluna real (não índice)
+    df_ranking.insert(0, 'Posição', range(1, len(df_ranking) + 1))
+
+    # Define o tamanho dos quartis
+    num_analistas = len(df_ranking)
+    quartil_size = 4 if num_analistas > 12 else math.ceil(num_analistas / 4)
+
+    # Estilização por quartis
+    def apply_dynamic_quartile_styles(row):
+        if row['Posição'] <= quartil_size:
+            color = 'rgba(135, 206, 250, 0.4)'  # Azul
+        elif row['Posição'] <= 2 * quartil_size:
+            color = 'rgba(144, 238, 144, 0.4)'  # Verde
+        elif row['Posição'] <= 3 * quartil_size:
+            color = 'rgba(255, 255, 102, 0.4)'  # Amarelo
+        else:
+            color = 'rgba(255, 99, 132, 0.4)'   # Vermelho
+        return ['background-color: {}'.format(color)] * len(row)
+
+    # Formatação do TMO
+    def format_timedelta(td):
+        if pd.isna(td):
+            return "00:00:00"
+        total_seconds = int(td.total_seconds())
+        return f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}:{total_seconds % 60:02d}"
+
+    df_ranking['TMO Médio'] = df_ranking['TMO Médio'].apply(format_timedelta)
+
+    # Estiliza com formatação
+    styled_df_ranking_atualizacao = df_ranking.style \
+        .apply(apply_dynamic_quartile_styles, axis=1) \
+        .format({
+            'Cadastros': '{:.0f}',
+            'Total': '{:.0f}',
+            'TMO Médio': '{}'
+        })
+
+    return styled_df_ranking_atualizacao
+
+def calcular_ranking_cadastro_pre(df_total, selected_users):
+    # Filtra apenas cadastros nas filas específicas
+    df_filtered = df_total[
+        (df_total['FINALIZAÇÃO'] == 'CADASTRADO') &
+        (df_total['USUÁRIO QUE CONCLUIU A TAREFA'].isin(selected_users)) &
+        (df_total['FILA'].isin([
+            'PRE CADASTRO E DIJUR',
+            'PRE CADASTRO E DIJUR - JV'
+        ]))
+    ]
+
+    # Agrupa por usuário: conta cadastros e calcula TMO médio
+    df_ranking = df_filtered.groupby('USUÁRIO QUE CONCLUIU A TAREFA').agg(
+        Cadastros=('FINALIZAÇÃO', 'count'),
+        TMO_Médio=('TEMPO MÉDIO OPERACIONAL', 'mean')
+    ).reset_index()
+
+    df_ranking['Total'] = df_ranking['Cadastros']
+
+    # Renomeia a coluna de usuário
+    df_ranking.rename(columns={
+        'USUÁRIO QUE CONCLUIU A TAREFA': 'Analista',
+        'TMO_Médio': 'TMO Médio'
+    }, inplace=True)
+
+    # Ordena pelo total
+    df_ranking = df_ranking.sort_values(by='Total', ascending=False).reset_index(drop=True)
+
+    # Adiciona a coluna Posição como coluna real (não índice)
+    df_ranking.insert(0, 'Posição', range(1, len(df_ranking) + 1))
+
+    # Define o tamanho dos quartis
+    num_analistas = len(df_ranking)
+    quartil_size = 4 if num_analistas > 12 else math.ceil(num_analistas / 4)
+
+    # Estilização por quartis
+    def apply_dynamic_quartile_styles(row):
+        if row['Posição'] <= quartil_size:
+            color = 'rgba(135, 206, 250, 0.4)'  # Azul
+        elif row['Posição'] <= 2 * quartil_size:
+            color = 'rgba(144, 238, 144, 0.4)'  # Verde
+        elif row['Posição'] <= 3 * quartil_size:
+            color = 'rgba(255, 255, 102, 0.4)'  # Amarelo
+        else:
+            color = 'rgba(255, 99, 132, 0.4)'   # Vermelho
+        return ['background-color: {}'.format(color)] * len(row)
+
+    # Formatação do TMO
+    def format_timedelta(td):
+        if pd.isna(td):
+            return "00:00:00"
+        total_seconds = int(td.total_seconds())
+        return f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}:{total_seconds % 60:02d}"
+
+    df_ranking['TMO Médio'] = df_ranking['TMO Médio'].apply(format_timedelta)
+
+    # Aplica estilos
+    styled_df_ranking_pre_cadastro = df_ranking.reset_index(drop=True) \
+        .style \
+        .apply(apply_dynamic_quartile_styles, axis=1) \
+        .format({
+            'Cadastros': '{:.0f}',
+            'Total': '{:.0f}',
+            'TMO Médio': '{}'
+        })
+
+    return styled_df_ranking_pre_cadastro
+
+def calcular_ranking_cadastro_oficios(df_total, selected_users):
+    # Filtra apenas cadastros nas filas específicas
+    df_filtered = df_total[
+        (df_total['FINALIZAÇÃO'] == 'CADASTRADO') &
+        (df_total['USUÁRIO QUE CONCLUIU A TAREFA'].isin(selected_users)) &
+        (df_total['FILA'].isin([
+            'OFICIOS',
+        ]))
+    ]
+
+    # Agrupa por usuário: conta cadastros e calcula TMO médio
+    df_ranking = df_filtered.groupby('USUÁRIO QUE CONCLUIU A TAREFA').agg(
+        Cadastros=('FINALIZAÇÃO', 'count'),
+        TMO_Médio=('TEMPO MÉDIO OPERACIONAL', 'mean')
+    ).reset_index()
+
+    df_ranking['Total'] = df_ranking['Cadastros']
+
+    # Renomeia a coluna de usuário
+    df_ranking.rename(columns={
+        'USUÁRIO QUE CONCLUIU A TAREFA': 'Analista',
+        'TMO_Médio': 'TMO Médio'
+    }, inplace=True)
+
+    # Ordena pelo total
+    df_ranking = df_ranking.sort_values(by='Total', ascending=False).reset_index(drop=True)
+
+    # Adiciona a coluna Posição como coluna real (não índice)
+    df_ranking.insert(0, 'Posição', range(1, len(df_ranking) + 1))
+
+    # Define o tamanho dos quartis
+    num_analistas = len(df_ranking)
+    quartil_size = 4 if num_analistas > 12 else math.ceil(num_analistas / 4)
+
+    # Estilização por quartis
+    def apply_dynamic_quartile_styles(row):
+        if row['Posição'] <= quartil_size:
+            color = 'rgba(135, 206, 250, 0.4)'  # Azul
+        elif row['Posição'] <= 2 * quartil_size:
+            color = 'rgba(144, 238, 144, 0.4)'  # Verde
+        elif row['Posição'] <= 3 * quartil_size:
+            color = 'rgba(255, 255, 102, 0.4)'  # Amarelo
+        else:
+            color = 'rgba(255, 99, 132, 0.4)'   # Vermelho
+        return ['background-color: {}'.format(color)] * len(row)
+
+    # Formatação do TMO
+    def format_timedelta(td):
+        if pd.isna(td):
+            return "00:00:00"
+        total_seconds = int(td.total_seconds())
+        return f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}:{total_seconds % 60:02d}"
+
+    df_ranking['TMO Médio'] = df_ranking['TMO Médio'].apply(format_timedelta)
+
+    # Aplica estilos
+    styled_df_ranking_cadastro_oficios = df_ranking.reset_index(drop=True) \
+        .style \
+        .apply(apply_dynamic_quartile_styles, axis=1) \
+        .format({
+            'Cadastros': '{:.0f}',
+            'Total': '{:.0f}',
+            'TMO Médio': '{}'
+        })
+
+    return styled_df_ranking_cadastro_oficios
+
+def calcular_ranking_cadastro_orgaos(df_total, selected_users):
+    # Filtra apenas cadastros nas filas específicas
+    df_filtered = df_total[
+        (df_total['FINALIZAÇÃO'] == 'CADASTRADO') &
+        (df_total['USUÁRIO QUE CONCLUIU A TAREFA'].isin(selected_users)) &
+        (df_total['FILA'].isin([
+            'CADASTRO DE ÓRGÃOS E OFÍCIOS',
+        ]))
+    ]
+
+    # Agrupa por usuário: conta cadastros e calcula TMO médio
+    df_ranking = df_filtered.groupby('USUÁRIO QUE CONCLUIU A TAREFA').agg(
+        Cadastros=('FINALIZAÇÃO', 'count'),
+        TMO_Médio=('TEMPO MÉDIO OPERACIONAL', 'mean')
+    ).reset_index()
+
+    df_ranking['Total'] = df_ranking['Cadastros']
+
+    # Renomeia a coluna de usuário
+    df_ranking.rename(columns={
+        'USUÁRIO QUE CONCLUIU A TAREFA': 'Analista',
+        'TMO_Médio': 'TMO Médio'
+    }, inplace=True)
+
+    # Ordena pelo total
+    df_ranking = df_ranking.sort_values(by='Total', ascending=False).reset_index(drop=True)
+
+    # Adiciona a coluna Posição como coluna real (não índice)
+    df_ranking.insert(0, 'Posição', range(1, len(df_ranking) + 1))
+
+    # Define o tamanho dos quartis
+    num_analistas = len(df_ranking)
+    quartil_size = 4 if num_analistas > 12 else math.ceil(num_analistas / 4)
+
+    # Estilização por quartis
+    def apply_dynamic_quartile_styles(row):
+        if row['Posição'] <= quartil_size:
+            color = 'rgba(135, 206, 250, 0.4)'  # Azul
+        elif row['Posição'] <= 2 * quartil_size:
+            color = 'rgba(144, 238, 144, 0.4)'  # Verde
+        elif row['Posição'] <= 3 * quartil_size:
+            color = 'rgba(255, 255, 102, 0.4)'  # Amarelo
+        else:
+            color = 'rgba(255, 99, 132, 0.4)'   # Vermelho
+        return ['background-color: {}'.format(color)] * len(row)
+
+    # Formatação do TMO
+    def format_timedelta(td):
+        if pd.isna(td):
+            return "00:00:00"
+        total_seconds = int(td.total_seconds())
+        return f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}:{total_seconds % 60:02d}"
+
+    df_ranking['TMO Médio'] = df_ranking['TMO Médio'].apply(format_timedelta)
+
+    # Aplica estilos
+    styled_df_ranking_cadastro_orgaos = df_ranking.reset_index(drop=True) \
+        .style \
+        .apply(apply_dynamic_quartile_styles, axis=1) \
+        .format({
+            'Cadastros': '{:.0f}',
+            'Total': '{:.0f}',
+            'TMO Médio': '{}'
+        })
+
+    return styled_df_ranking_cadastro_orgaos
+
+def calcular_ranking_auditoria(df_total, selected_users):
+    # Filtra apenas cadastros nas filas específicas
+    df_filtered = df_total[
+        (df_total['FINALIZAÇÃO'] == 'AUDITADO') &
+        (df_total['USUÁRIO QUE CONCLUIU A TAREFA'].isin(selected_users)) &
+        (df_total['FILA'].isin([
+            'AUDITORIA - CADASTRO',
+        ]))
+    ]
+
+    # Agrupa por usuário: conta cadastros e calcula TMO médio
+    df_ranking = df_filtered.groupby('USUÁRIO QUE CONCLUIU A TAREFA').agg(
+        Cadastros=('FINALIZAÇÃO', 'count'),
+        TMO_Médio=('TEMPO MÉDIO OPERACIONAL', 'mean')
+    ).reset_index()
+
+    df_ranking['Total'] = df_ranking['Cadastros']
+
+    # Renomeia a coluna de usuário
+    df_ranking.rename(columns={
+        'USUÁRIO QUE CONCLUIU A TAREFA': 'Analista',
+        'TMO_Médio': 'TMO Médio'
+    }, inplace=True)
+
+    # Ordena pelo total
+    df_ranking = df_ranking.sort_values(by='Total', ascending=False).reset_index(drop=True)
+
+    # Adiciona a coluna Posição como coluna real (não índice)
+    df_ranking.insert(0, 'Posição', range(1, len(df_ranking) + 1))
+
+    # Define o tamanho dos quartis
+    num_analistas = len(df_ranking)
+    quartil_size = 4 if num_analistas > 12 else math.ceil(num_analistas / 4)
+
+    # Estilização por quartis
+    def apply_dynamic_quartile_styles(row):
+        if row['Posição'] <= quartil_size:
+            color = 'rgba(135, 206, 250, 0.4)'  # Azul
+        elif row['Posição'] <= 2 * quartil_size:
+            color = 'rgba(144, 238, 144, 0.4)'  # Verde
+        elif row['Posição'] <= 3 * quartil_size:
+            color = 'rgba(255, 255, 102, 0.4)'  # Amarelo
+        else:
+            color = 'rgba(255, 99, 132, 0.4)'   # Vermelho
+        return ['background-color: {}'.format(color)] * len(row)
+
+    # Formatação do TMO
+    def format_timedelta(td):
+        if pd.isna(td):
+            return "00:00:00"
+        total_seconds = int(td.total_seconds())
+        return f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}:{total_seconds % 60:02d}"
+
+    df_ranking['TMO Médio'] = df_ranking['TMO Médio'].apply(format_timedelta)
+
+    # Aplica estilos
+    styled_df_ranking_auditoria = df_ranking.reset_index(drop=True) \
+        .style \
+        .apply(apply_dynamic_quartile_styles, axis=1) \
+        .format({
+            'Cadastros': '{:.0f}',
+            'Total': '{:.0f}',
+            'TMO Médio': '{}'
+        })
+
+    return styled_df_ranking_auditoria
+
+def calcular_ranking_distribuicao(df_total, selected_users):
+    # Filtra apenas cadastros nas filas específicas
+    df_filtered = df_total[
+        (df_total['FINALIZAÇÃO'] == 'REALIZADO') &
+        (df_total['USUÁRIO QUE CONCLUIU A TAREFA'].isin(selected_users)) &
+        (df_total['FILA'].isin([
+            'DISTRIBUIÇÃO - AMIL + JV', 
+            'DISTRIBUIÇÃO - JV CÍVEL', 
+            'DISTRIBUIÇÃO - PRÉ CADASTRO', 
+            'DISTRIBUIÇÃO - PRÉ CADASTRO - JV', 
+            'DISTRIBUICAO'
+        ]))
+    ]
+
+    # Agrupa por usuário: conta cadastros e calcula TMO médio
+    df_ranking = df_filtered.groupby('USUÁRIO QUE CONCLUIU A TAREFA').agg(
+        Distribuidos=('FINALIZAÇÃO', 'count'),
+        TMO_Médio=('TEMPO MÉDIO OPERACIONAL', 'mean')
+    ).reset_index()
+
+    df_ranking['Total'] = df_ranking['Distribuidos']
+
+    # Renomeia a coluna de usuário
+    df_ranking.rename(columns={
+        'USUÁRIO QUE CONCLUIU A TAREFA': 'Analista',
+        'TMO_Médio': 'TMO Médio'
+    }, inplace=True)
+
+    # Ordena pelo total
+    df_ranking = df_ranking.sort_values(by='Total', ascending=False).reset_index(drop=True)
+
+    # Adiciona a coluna Posição como coluna real (não índice)
+    df_ranking.insert(0, 'Posição', range(1, len(df_ranking) + 1))
+
+    # Define o tamanho dos quartis
+    num_analistas = len(df_ranking)
+    quartil_size = 4 if num_analistas > 12 else math.ceil(num_analistas / 4)
+
+    # Estilização por quartis
+    def apply_dynamic_quartile_styles(row):
+        if row['Posição'] <= quartil_size:
+            color = 'rgba(135, 206, 250, 0.4)'  # Azul
+        elif row['Posição'] <= 2 * quartil_size:
+            color = 'rgba(144, 238, 144, 0.4)'  # Verde
+        elif row['Posição'] <= 3 * quartil_size:
+            color = 'rgba(255, 255, 102, 0.4)'  # Amarelo
+        else:
+            color = 'rgba(255, 99, 132, 0.4)'   # Vermelho
+        return ['background-color: {}'.format(color)] * len(row)
+
+    # Formatação do TMO
+    def format_timedelta(td):
+        if pd.isna(td):
+            return "00:00:00"
+        total_seconds = int(td.total_seconds())
+        return f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}:{total_seconds % 60:02d}"
+
+    df_ranking['TMO Médio'] = df_ranking['TMO Médio'].apply(format_timedelta)
+
+    # Aplica estilos
+    styled_df_ranking_distribuidos = df_ranking.reset_index(drop=True) \
+        .style \
+        .apply(apply_dynamic_quartile_styles, axis=1) \
+        .format({
+            'Cadastros': '{:.0f}',
+            'Total': '{:.0f}',
+            'TMO Médio': '{}'
+        })
+
+    return styled_df_ranking_distribuidos
 
 def obter_melhor_analista_por_fila(df):
     df = df[df['FINALIZAÇÃO'].isin(['CADASTRADO', 'ATUALIZADO'])].copy()
@@ -663,57 +1157,32 @@ def get_points_of_attention(df):
 
     return pontos_de_atencao
 
-import pandas as pd
-
-import pandas as pd
-
 def calcular_tmo_por_carteira(df):
-    """
-    Calcula o Tempo Médio Operacional (TMO) por carteira, separando o TMO de Cadastro e o TMO de Atualização.
-    Para a fila "Distribuição", o cálculo do TMO considera todas as tarefas finalizadas como "REALIZADO".
-
-    Parâmetros:
-        df (pd.DataFrame): DataFrame contendo as colunas 'FILA', 'TEMPO MÉDIO OPERACIONAL', 
-                           'FINALIZAÇÃO' e 'NÚMERO DO PROTOCOLO'.
-
-    Retorno:
-        pd.DataFrame: DataFrame contendo as colunas 'FILA', 'Quantidade', 'Cadastrado', 'Atualizado',
-                      'Fora do Escopo', 'TMO Cadastro' e 'TMO Atualização'.
-    """
-    # Verifica se as colunas necessárias estão no DataFrame
     required_columns = {'FILA', 'TEMPO MÉDIO OPERACIONAL', 'FINALIZAÇÃO', 'NÚMERO DO PROTOCOLO'}
     if not required_columns.issubset(df.columns):
         return "As colunas necessárias não foram encontradas no DataFrame."
 
-    # Remove linhas com valores NaN na coluna 'TEMPO MÉDIO OPERACIONAL'
     df = df.dropna(subset=['TEMPO MÉDIO OPERACIONAL'])
 
-    # Verifica se os valores da coluna 'TEMPO MÉDIO OPERACIONAL' são do tipo timedelta
     if not pd.api.types.is_timedelta64_dtype(df['TEMPO MÉDIO OPERACIONAL']):
         return "A coluna 'TEMPO MÉDIO OPERACIONAL' contém valores que não são do tipo timedelta."
 
-    # Remove duplicatas baseadas no número do protocolo para os casos 'Fora do Escopo'
     df_unique = df.drop_duplicates(subset=['NÚMERO DO PROTOCOLO'])
 
-    # Filtrar apenas tarefas "CADASTRADO" e "ATUALIZADO" (exceto Distribuição)
     df_tmo = df[df['FINALIZAÇÃO'].isin(['CADASTRADO', 'ATUALIZADO']) & (df['FILA'] != 'Distribuição')]
 
-    # Agrupar por fila para calcular as quantidades e médias separadas
     tmo_por_carteira = df_tmo.groupby('FILA').agg(
         Quantidade=('FILA', 'size'),
         Cadastrado=('FINALIZAÇÃO', lambda x: (x == 'CADASTRADO').sum()),
         Atualizado=('FINALIZAÇÃO', lambda x: (x == 'ATUALIZADO').sum()),
     ).reset_index()
 
-    # Calcular TMO apenas para "CADASTRADO"
     df_cadastro = df[df['FINALIZAÇÃO'] == 'CADASTRADO'].groupby('FILA')['TEMPO MÉDIO OPERACIONAL'].mean().reset_index()
     df_cadastro.rename(columns={'TEMPO MÉDIO OPERACIONAL': 'TMO Cadastro'}, inplace=True)
 
-    # Calcular TMO apenas para "ATUALIZADO"
     df_atualizacao = df[df['FINALIZAÇÃO'] == 'ATUALIZADO'].groupby('FILA')['TEMPO MÉDIO OPERACIONAL'].mean().reset_index()
     df_atualizacao.rename(columns={'TEMPO MÉDIO OPERACIONAL': 'TMO Atualização'}, inplace=True)
 
-    # Calcular TMO para a fila "Distribuição" considerando apenas "REALIZADO"
     filas_distribuicao = [
         'DISTRIBUIÇÃO - AMIL + JV', 
         'DISTRIBUIÇÃO - JV CÍVEL', 
@@ -730,26 +1199,39 @@ def calcular_tmo_por_carteira(df):
             TMO_Distribuicao=('TEMPO MÉDIO OPERACIONAL', 'mean')
         ).reset_index()
         tmo_distribuicao.rename(columns={'TMO_Distribuicao': 'TMO Cadastro'}, inplace=True)
-        tmo_distribuicao['TMO Atualização'] = None  # A fila "Distribuição" não tem TMO Atualização
+        tmo_distribuicao['TMO Atualização'] = None
     else:
         tmo_distribuicao = pd.DataFrame(columns=['FILA', 'Quantidade', 'TMO Cadastro', 'TMO Atualização'])
 
-    # Unir os dados ao DataFrame principal
     tmo_por_carteira = tmo_por_carteira.merge(df_cadastro, on='FILA', how='left')
     tmo_por_carteira = tmo_por_carteira.merge(df_atualizacao, on='FILA', how='left')
-
-    # Adicionar a fila "Distribuição" ao resultado final
     tmo_por_carteira = pd.concat([tmo_por_carteira, tmo_distribuicao], ignore_index=True)
 
-    # Calcular 'Fora do Escopo' considerando apenas protocolos únicos
+    # --- NOVO BLOCO: AUDITORIA - CADASTRO ---
+    df_auditoria = df[(df['FILA'] == 'AUDITORIA - CADASTRO') & (df['FINALIZAÇÃO'] == 'AUDITADO')]
+
+    if not df_auditoria.empty:
+        tmo_auditoria = df_auditoria.groupby('FILA').agg(
+            Quantidade=('FILA', 'size'),
+            TMO_Cadastro=('TEMPO MÉDIO OPERACIONAL', 'mean')
+        ).reset_index()
+        tmo_auditoria.rename(columns={'TMO_Cadastro': 'TMO Cadastro'}, inplace=True)
+        tmo_auditoria['TMO Atualização'] = None
+        tmo_por_carteira = pd.concat([tmo_por_carteira, tmo_auditoria], ignore_index=True)
+
+    # Calcular 'Fora do Escopo'
     fora_do_escopo_contagem = df_unique.groupby('FILA').apply(
         lambda x: x.shape[0] - (x['FINALIZAÇÃO'] == 'CADASTRADO').sum() - (x['FINALIZAÇÃO'] == 'ATUALIZADO').sum()
     ).reset_index(name='Fora do Escopo')
-
-    # Mesclar a contagem de 'Fora do Escopo'
     tmo_por_carteira = tmo_por_carteira.merge(fora_do_escopo_contagem, on='FILA', how='left')
 
-    # Converter os tempos médios para HH:MM:SS
+    # Calcular TMO Fora do Escopo
+    finais_excluidas = ['CADASTRADO', 'ATUALIZADO', 'REALIZADO', 'BAIXA EM LOTE']
+    df_fora_escopo = df[~df['FINALIZAÇÃO'].isin(finais_excluidas)]
+    tmo_fora_escopo = df_fora_escopo.groupby('FILA')['TEMPO MÉDIO OPERACIONAL'].mean().reset_index()
+    tmo_fora_escopo.rename(columns={'TEMPO MÉDIO OPERACIONAL': 'TMO Fora do Escopo'}, inplace=True)
+    tmo_por_carteira = tmo_por_carteira.merge(tmo_fora_escopo, on='FILA', how='left')
+
     def format_timedelta(td):
         if pd.isna(td):
             return "00:00:00"
@@ -758,9 +1240,23 @@ def calcular_tmo_por_carteira(df):
 
     tmo_por_carteira['TMO Cadastro'] = tmo_por_carteira['TMO Cadastro'].apply(format_timedelta)
     tmo_por_carteira['TMO Atualização'] = tmo_por_carteira['TMO Atualização'].apply(format_timedelta)
+    tmo_por_carteira['TMO Fora do Escopo'] = tmo_por_carteira['TMO Fora do Escopo'].apply(format_timedelta)
 
-    # Selecionar apenas as colunas finais
-    tmo_por_carteira = tmo_por_carteira[['FILA', 'Quantidade', 'Cadastrado', 'Atualizado', 'Fora do Escopo', 'TMO Cadastro', 'TMO Atualização']]
+    tmo_por_carteira = tmo_por_carteira[['FILA', 'Quantidade', 'Cadastrado', 'Atualizado', 'Fora do Escopo', 'TMO Cadastro', 'TMO Atualização', 'TMO Fora do Escopo']]
+
+    return tmo_por_carteira
+
+    def format_timedelta(td):
+        if pd.isna(td):
+            return "00:00:00"
+        total_seconds = int(td.total_seconds())
+        return f"{total_seconds // 3600:02d}:{(total_seconds % 3600) // 60:02d}:{total_seconds % 60:02d}"
+
+    tmo_por_carteira['TMO Cadastro'] = tmo_por_carteira['TMO Cadastro'].apply(format_timedelta)
+    tmo_por_carteira['TMO Atualização'] = tmo_por_carteira['TMO Atualização'].apply(format_timedelta)
+    tmo_por_carteira['TMO Fora do Escopo'] = tmo_por_carteira['TMO Fora do Escopo'].apply(format_timedelta)
+
+    tmo_por_carteira = tmo_por_carteira[['FILA', 'Quantidade', 'Cadastrado', 'Atualizado', 'Fora do Escopo', 'TMO Cadastro', 'TMO Atualização', 'TMO Fora do Escopo']]
 
     return tmo_por_carteira
 
@@ -822,55 +1318,95 @@ def calcular_producao_email_detalhada(df):
 
     return df_email_final
 
-def calcular_e_exibir_tmo_cadastro_atualizacao_por_fila (df_analista, format_timedelta_hms, st):
+def calcular_e_exibir_tmo_cadastro_atualizacao_por_fila(df_analista, format_timedelta_hms, st):
     """
-    Calcula e exibe o TMO médio de Cadastro e Atualização por Fila,
-    junto com a quantidade de tarefas realizadas, na dashboard do Streamlit.
+    Calcula e exibe o TMO médio por Fila com base nas finalizações:
+    - CADASTRADO, ATUALIZADO
+    - AUDITADO (Auditoria)
+    - REALIZADO (Distribuição)
 
-    Parâmetros:
-        - df_analista: DataFrame contendo os dados de análise.
-        - format_timedelta_hms: Função para formatar a duração do TMO em HH:MM:SS.
-        - st: Referência para o módulo Streamlit (necessário para exibir os resultados).
+    Exibe a quantidade total de tarefas por fila e os TMOs médios em HH:MM:SS.
     """
     if 'FILA' in df_analista.columns and 'FINALIZAÇÃO' in df_analista.columns:
-        # Filtrar apenas as tarefas finalizadas com CADASTRADO e ATUALIZADO
-        filas_finalizadas_analista = df_analista[df_analista['FINALIZAÇÃO'].isin(['CADASTRADO', 'ATUALIZADO'])]
+        # ------------------------------
+        # Filtros por finalização
+        # ------------------------------
+        cadastro_ou_atualizacao = df_analista[df_analista['FINALIZAÇÃO'].isin(['CADASTRADO', 'ATUALIZADO'])]
+        auditoria = df_analista[(df_analista['FILA'] == 'AUDITORIA - CADASTRO') & (df_analista['FINALIZAÇÃO'] == 'AUDITADO')]
+        distribuicao = df_analista[df_analista['FILA'].isin([
+            'DISTRIBUIÇÃO - AMIL + JV',
+            'DISTRIBUIÇÃO - JV CÍVEL',
+            'DISTRIBUIÇÃO - PRÉ CADASTRO',
+            'DISTRIBUIÇÃO - PRÉ CADASTRO - JV',
+            'DISTRIBUICAO'
+        ]) & (df_analista['FINALIZAÇÃO'] == 'REALIZADO')]
 
-        # Agrupar os dados por 'FILA' e calcular a quantidade de tarefas por fila
-        df_quantidade = filas_finalizadas_analista.groupby('FILA').size().reset_index(name='Quantidade')
+        # ------------------------------
+        # CADASTRADO / ATUALIZADO
+        # ------------------------------
+        df_quantidade = cadastro_ou_atualizacao.groupby('FILA').size().reset_index(name='Quantidade')
+        df_tmo_cadastro = cadastro_ou_atualizacao[cadastro_ou_atualizacao['FINALIZAÇÃO'] == 'CADASTRADO'].groupby('FILA')['TEMPO MÉDIO OPERACIONAL'].mean().reset_index()
+        df_tmo_atualizacao = cadastro_ou_atualizacao[cadastro_ou_atualizacao['FINALIZAÇÃO'] == 'ATUALIZADO'].groupby('FILA')['TEMPO MÉDIO OPERACIONAL'].mean().reset_index()
+        df_tmo_cadastro.rename(columns={'TEMPO MÉDIO OPERACIONAL': 'TMO Cadastro'}, inplace=True)
+        df_tmo_atualizacao.rename(columns={'TEMPO MÉDIO OPERACIONAL': 'TMO Atualização'}, inplace=True)
 
-        # Calcular o TMO médio para cada fila separadamente
-        df_tmo_cadastro = filas_finalizadas_analista[filas_finalizadas_analista['FINALIZAÇÃO'] == 'CADASTRADO'].groupby('FILA')['TEMPO MÉDIO OPERACIONAL'].mean().reset_index()
-        df_tmo_atualizacao = filas_finalizadas_analista[filas_finalizadas_analista['FINALIZAÇÃO'] == 'ATUALIZADO'].groupby('FILA')['TEMPO MÉDIO OPERACIONAL'].mean().reset_index()
+        # ------------------------------
+        # AUDITORIA
+        # ------------------------------
+        df_auditoria = auditoria.groupby('FILA').agg(
+            Quantidade=('FILA', 'size'),
+            TMO_Auditoria=('TEMPO MÉDIO OPERACIONAL', 'mean')
+        ).reset_index()
+        df_auditoria.rename(columns={'TMO_Auditoria': 'TMO Auditoria'}, inplace=True)
 
-        # Renomear colunas
-        df_tmo_cadastro.rename(columns={'TEMPO MÉDIO OPERACIONAL': 'TMO_Cadastro'}, inplace=True)
-        df_tmo_atualizacao.rename(columns={'TEMPO MÉDIO OPERACIONAL': 'TMO_Atualizacao'}, inplace=True)
+        # ------------------------------
+        # DISTRIBUIÇÃO
+        # ------------------------------
+        df_distribuicao = distribuicao.groupby('FILA').agg(
+            Quantidade=('FILA', 'size'),
+            TMO_Distribuicao=('TEMPO MÉDIO OPERACIONAL', 'mean')
+        ).reset_index()
+        df_distribuicao.rename(columns={'TMO_Distribuicao': 'TMO Distribuição'}, inplace=True)
 
-        # Unir os DataFrames pela Fila
-        df_resultado = df_quantidade.merge(df_tmo_cadastro, on='FILA', how='left').merge(df_tmo_atualizacao, on='FILA', how='left')
+        # ------------------------------
+        # Merge e unificação
+        # ------------------------------
+        df_resultado = df_quantidade.merge(df_tmo_cadastro, on='FILA', how='left') \
+                                    .merge(df_tmo_atualizacao, on='FILA', how='left')
 
-        # Substituir valores NaN por Timedelta(0)
+        df_resultado = pd.concat([df_resultado, df_auditoria, df_distribuicao], ignore_index=True)
+
         df_resultado.fillna(pd.Timedelta(seconds=0), inplace=True)
 
-        # Converter os TMOs para HH:MM:SS
-        df_resultado['TMO_Cadastro'] = df_resultado['TMO_Cadastro'].apply(format_timedelta_hms)
-        df_resultado['TMO_Atualizacao'] = df_resultado['TMO_Atualizacao'].apply(format_timedelta_hms)
+        # ------------------------------
+        # Formatar tempos
+        # ------------------------------
+        for col in ['TMO Cadastro', 'TMO Atualização', 'TMO Auditoria', 'TMO Distribuição']:
+            if col in df_resultado.columns:
+                df_resultado[col] = df_resultado[col].apply(format_timedelta_hms)
 
-        # Renomear colunas para exibição
-        df_resultado.rename(columns={
-            'FILA': 'Fila',
-            'Quantidade': 'Quantidade',
-            'TMO_Cadastro': 'TMO Cadastro',
-            'TMO_Atualizacao': 'TMO Atualização'
-        }, inplace=True)
+        # Renomeia coluna Fila
+        df_resultado.rename(columns={'FILA': 'Fila'}, inplace=True)
 
-        # Estilizar tabela no Streamlit
-        styled_df = df_resultado.style.format({'Quantidade': '{:.0f}', 'TMO Cadastro': '{}', 'TMO Atualização': '{}'}).set_properties(**{'text-align': 'left'})
-        styled_df = styled_df.set_table_styles([dict(selector='th', props=[('text-align', 'left')])])
+        # Ordena pela Quantidade
+        df_resultado = df_resultado.sort_values(by='Quantidade', ascending=False)
 
-        # Exibir DataFrame estilizado na dashboard
-        st.dataframe(styled_df, hide_index=True, use_container_width=True)
+        # ------------------------------
+        # Estilizar para Streamlit
+        # ------------------------------
+        styled_df = df_resultado.style \
+            .format({
+                'Quantidade': '{:.0f}',
+                'TMO Cadastro': '{}',
+                'TMO Atualização': '{}',
+                'TMO Auditoria': '{}',
+                'TMO Distribuição': '{}'
+            }) \
+            .set_properties(**{'text-align': 'center'}) \
+            .set_table_styles([dict(selector='th', props=[('text-align', 'center')])])
+
+        st.dataframe(styled_df, use_container_width=True, hide_index=True)
+
     else:
         st.warning("As colunas necessárias ('FILA' e 'FINALIZAÇÃO') não foram encontradas no DataFrame.")
 
@@ -2262,3 +2798,5 @@ def exibir_grafico_desvios_auditoria(df):
     desvio_top = df_desvios.iloc[0]
     with st.container(border=True):
         st.metric(label="Desvio Mais Frequente", value=desvio_top['Desvio'], delta=f"{desvio_top['Frequência']} ocorrências")
+        
+

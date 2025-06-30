@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from io import BytesIO
-from .calculations import calcular_tmo_equipe_cadastro, gerar_ficha_html_analista, contar_desvios, exibir_cadastro_atualizacao_por_modulo, calcular_cadastro_atualizacao_por_modulo, obter_maior_quantidade_por_fila, exibir_grafico_desvios_auditoria, exibir_melhor_analista_por_fila, exibir_maior_quantidade_por_fila, calcular_e_exibir_tmo_cadastro_atualizacao_por_fila, format_timedelta_hms,exibir_grafico_tmo_analista_por_mes, format_timedelta_grafico_tmo_analista, obter_melhor_analista_por_fila, exibir_grafico_tempo_ocioso_por_dia, calcular_producao_email_detalhada, calcular_producao_agrupada, exportar_planilha_com_tmo_completo, gerar_relatorio_html, download_html, download_html_tmo, gerar_relatorio_html_tmo,  calcular_tmo_equipe_atualizado, calcular_produtividade_diaria, calcular_tmo_por_dia_cadastro, calcular_produtividade_diaria_cadastro, calcular_tmo_por_dia, convert_to_timedelta_for_calculations, convert_to_datetime_for_calculations, save_data, load_data, format_timedelta, calcular_ranking, calcular_filas_analista, calcular_metrica_analista, calcular_carteiras_analista,exportar_relatorio_detalhado_por_analista, get_points_of_attention, calcular_tmo_por_carteira, calcular_tmo, calcular_e_exibir_tmo_por_fila, calcular_tmo_por_mes, exibir_tmo_por_mes, exibir_dataframe_tmo_formatado, export_dataframe, calcular_tempo_ocioso_por_analista, calcular_melhor_tmo_por_dia, calcular_melhor_dia_por_cadastro, exibir_tmo_por_mes_analista, exportar_planilha_com_tmo, calcular_tmo_geral, calcular_tmo_cadastro, calcular_tempo_ocioso, gerar_relatorio_tmo_completo
+from .calculations import calcular_tmo_equipe_cadastro, calcular_ranking_atualizacao, calcular_ranking_distribuicao, calcular_ranking_auditoria, calcular_ranking_cadastro_orgaos,calcular_ranking_cadastro_oficios, calcular_ranking_cadastro_pre,calcular_ranking_cadastro_judicial, gerar_ficha_html_analista, contar_desvios, exibir_cadastro_atualizacao_por_modulo, calcular_cadastro_atualizacao_por_modulo, obter_maior_quantidade_por_fila, exibir_grafico_desvios_auditoria, exibir_melhor_analista_por_fila, exibir_maior_quantidade_por_fila, calcular_e_exibir_tmo_cadastro_atualizacao_por_fila, format_timedelta_hms,exibir_grafico_tmo_analista_por_mes, format_timedelta_grafico_tmo_analista, obter_melhor_analista_por_fila, exibir_grafico_tempo_ocioso_por_dia, calcular_producao_email_detalhada, calcular_producao_agrupada, exportar_planilha_com_tmo_completo, gerar_relatorio_html, download_html, download_html_tmo, gerar_relatorio_html_tmo,  calcular_tmo_equipe_atualizado, calcular_produtividade_diaria, calcular_tmo_por_dia_cadastro, calcular_produtividade_diaria_cadastro, calcular_tmo_por_dia, convert_to_timedelta_for_calculations, convert_to_datetime_for_calculations, save_data, load_data, format_timedelta, calcular_ranking, calcular_filas_analista, calcular_metrica_analista, calcular_carteiras_analista,exportar_relatorio_detalhado_por_analista, get_points_of_attention, calcular_tmo_por_carteira, calcular_tmo, calcular_e_exibir_tmo_por_fila, calcular_tmo_por_mes, exibir_tmo_por_mes, exibir_dataframe_tmo_formatado, export_dataframe, calcular_tempo_ocioso_por_analista, calcular_melhor_tmo_por_dia, calcular_melhor_dia_por_cadastro, exibir_tmo_por_mes_analista, exportar_planilha_com_tmo, calcular_tmo_geral, calcular_tmo_cadastro, calcular_tempo_ocioso, gerar_relatorio_tmo_completo
 from .charts import plot_produtividade_diaria, plot_grafico_desvios, plot_tmo_por_dia_cadastro, plot_tmo_por_dia_cadastro, exibir_grafico_tp_causa, plot_produtividade_diaria_cadastros, plot_tmo_por_dia, plot_status_pie, grafico_tmo, grafico_status_analista, exibir_grafico_filas_realizadas, exibir_grafico_tmo_por_dia, exibir_grafico_quantidade_por_dia
 from datetime import datetime
 import difflib
@@ -200,7 +200,7 @@ def dashboard():
 
     # Lógica para exibir o logo baseado no tema
     if ms.themes["current_theme"] == "light":
-        st.logo("https://finchsolucoes.com.br/img/1d8d2f6c-3a6e-4e2e-8a7a-3f9b9b3e0d5d.png")  # Logo para o tema claro
+        st.logo("https://finchsolucoes.com.br/img/eb28739f-bef7-4366-9a17-6d629cf5e0d9.png")  # Logo para o tema claro
     else:
         st.logo("https://finchsolucoes.com.br/img/fefdd9df-1bd3-4107-ab22-f06d392c1f55.png")  # Logo para o tema escuro
 
@@ -213,7 +213,7 @@ def dashboard():
     
     if opcao_selecionada == "Visão Geral":
         
-        st.title("Produtividade Geral" + " " + "" + " " + ":material/groups:")
+        st.title("Produtividade Geral")
 
         # Filtros de data
         min_date = df_total['DATA DE CONCLUSÃO DA TAREFA'].min().date() if not df_total.empty else datetime.today().date()
@@ -235,6 +235,7 @@ def dashboard():
         total_finalizados = len(df_total[df_total['FINALIZAÇÃO'] == 'CADASTRADO'])
         total_atualizados = len(df_total[df_total['FINALIZAÇÃO'] == 'ATUALIZADO'])
         total_distribuidos = len(df_total[df_total['FINALIZAÇÃO'] == 'REALIZADO'])
+        total_auditado = len(df_total[df_total['FINALIZAÇÃO'] == 'AUDITADO'])
         total_geral = total_finalizados + total_atualizados + total_distribuidos
 
         # Calcular tempo médio geral, verificando se o total geral é maior que zero
@@ -271,6 +272,13 @@ def dashboard():
         else:
             tempo_medio_distribuicoes = pd.Timedelta(0)
             
+        if total_auditado > 0:
+            tempo_medio_auditoria = (
+                df_total[df_total['FINALIZAÇÃO'] == 'AUDITADO']['TEMPO MÉDIO OPERACIONAL'].sum()
+            ) / total_auditado
+        else:
+            tempo_medio_auditoria = pd.Timedelta(0)
+            
         st.write(
             """
             <style>
@@ -282,16 +290,19 @@ def dashboard():
             unsafe_allow_html=True,
         )
 
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
             with st.container(border=True):
                 st.metric("Total Geral", total_geral, delta=f"Tempo Médio - " + format_timedelta(tempo_medio), delta_color="off", help="Engloba todas as tarefas finalizadas e exibe o tempo médio geral.")
         with col2:
             with st.container(border=True):
-                st.metric("Total Cadastrado", total_finalizados, delta=f"Tempo Médio - " + format_timedelta(tempo_medio_cadastros), delta_color="off", help="Tempo médio das tarefas cadastradas.")
+                st.metric("Total Cadastros", total_finalizados, delta=f"Tempo Médio - " + format_timedelta(tempo_medio_cadastros), delta_color="off", help="Tempo médio das tarefas cadastradas.")
         with col3:
             with st.container(border=True):
-                st.metric("Total Atualizado", total_atualizados, delta=f"Tempo Médio - " + format_timedelta(tempo_medio_autalizacoes), delta_color="off", help="Tempo médio das tarefas atualizadas.")
+                st.metric("Total Atualizações", total_atualizados, delta=f"Tempo Médio - " + format_timedelta(tempo_medio_autalizacoes), delta_color="off", help="Tempo médio das tarefas atualizadas.")
+        with col4:
+            with st.container(border=True):
+                st.metric("Total Auditoria", total_auditado, delta=f"Tempo Médio - " + format_timedelta(tempo_medio_auditoria), delta_color="off", help="Tempo médio das tarefas auditadas.")
 
         # Expander com Total Geral --- Sendo a soma de todos os cadastros, reclassificados e andamentos
         with st.expander("Tempo Médio por Fila"):
@@ -418,45 +429,319 @@ def dashboard():
                 with st.container(border=True):
                     exibir_maior_quantidade_por_fila(df_total)
         
-        with st.container(border=True):  
-            st.subheader("Ranking de Produtividade")
+        tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(["Ranking Geral", "Ranking Cadastro", "Ranking Atualizações","Ranking Pré-Cadastro", "Ranking Ofícios", "Ranking Demais Órgãos", "Ranking Auditoria", "Ranking Distribuição"])
+        
+        with tab1:
+            with st.container(border=True):  
+                st.subheader("Ranking de Geral")
+                
+                            # Selecione os usuários
+                users = df_total['USUÁRIO QUE CONCLUIU A TAREFA'].dropna().unique()
+
+                # Lista de usuários a serem excluídos da seleção padrão
+                usuarios_excluidos = [
+                    "viniciusgimenes_amil", "biancamaia", "biancabazolli", "bayrabraz",
+                    "barbaralopes_amil", "andrewcossi", "ingridvieira_amil", "beatrizromao_amil", "eloabernardo", "alexandredomingues", "sabrinalira"
+                ]
+
+                # Filtrar para seleção padrão (sem _ter e sem os nomes excluídos)
+                users_filtrados = [
+                    u for u in users if "_ter" not in u and u not in usuarios_excluidos
+                ]
+
+                selected_users = st.multiselect(
+                    "Selecione os Analistas:",
+                    options=users,
+                    default=users_filtrados,
+                    key="multiselect_ranking"
+                )
+
+                # Calcular o ranking
+                styled_df_ranking = calcular_ranking(df_total, selected_users)
+                
+                # Exibir a tabela de ranking
+                st.dataframe(styled_df_ranking, width=2000, hide_index=True)
+                
+                    # Injetando CSS e JavaScript para aumentar o tamanho do modal
+            st.markdown("""
+                <style>
+                    div [tabindex="-1"] {
+                        width: 80% !important;
+                    }
+                </style>
+            """, unsafe_allow_html=True)
+        
+        with tab2:
+            with st.container(border=True):  
+                st.subheader("Ranking Cadastro")
+                
+                            # Selecione os usuários
+                users = df_total['USUÁRIO QUE CONCLUIU A TAREFA'].dropna().unique()
+
+                # Lista de usuários a serem excluídos da seleção padrão
+                usuarios_excluidos = [
+                    "viniciusgimenes_amil", "biancamaia", "biancabazolli", "bayrabraz",
+                    "barbaralopes_amil", "andrewcossi", "ingridvieira_amil", "beatrizromao_amil", "eloabernardo", "alexandredomingues", "sabrinalira"
+                ]
+
+                # Filtrar para seleção padrão (sem _ter e sem os nomes excluídos)
+                users_filtrados = [
+                    u for u in users if "_ter" not in u and u not in usuarios_excluidos
+                ]
+
+                selected_users = st.multiselect(
+                    "Selecione os Analistas:",
+                    options=users,
+                    default=users_filtrados,
+                    key="multiselect_ranking_cadastro"
+                )
+
+                # Calcular o ranking
+                styled_df_ranking_cadastro = calcular_ranking_cadastro_judicial(df_total, selected_users)
+                
+                # Exibir a tabela de ranking
+                st.dataframe(styled_df_ranking_cadastro, width=2000, hide_index=True)
+                
+            # Injetando CSS e JavaScript para aumentar o tamanho do modal
+            st.markdown("""
+                <style>
+                    div [tabindex="-1"] {
+                        width: 80% !important;
+                    }
+                </style>
+            """, unsafe_allow_html=True)
             
-                        # Selecione os usuários
-            users = df_total['USUÁRIO QUE CONCLUIU A TAREFA'].dropna().unique()
+        with tab3:
+            with st.container(border=True):  
+                st.subheader("Ranking Atualização")
+                
+                            # Selecione os usuários
+                users = df_total['USUÁRIO QUE CONCLUIU A TAREFA'].dropna().unique()
 
-            # Lista de usuários a serem excluídos da seleção padrão
-            usuarios_excluidos = [
-                "viniciusgimenes_amil", "biancamaia", "biancabazolli", "bayrabraz",
-                "barbaralopes_amil", "andrewcossi", "ingridvieira_amil", "beatrizromao_amil", "eloabernardo", "alexandredomingues", "sabrinalira"
-            ]
+                # Lista de usuários a serem excluídos da seleção padrão
+                usuarios_excluidos = [
+                    "viniciusgimenes_amil", "biancamaia", "biancabazolli", "bayrabraz",
+                    "barbaralopes_amil", "andrewcossi", "ingridvieira_amil", "beatrizromao_amil", "eloabernardo", "alexandredomingues", "sabrinalira"
+                ]
 
-            # Filtrar para seleção padrão (sem _ter e sem os nomes excluídos)
-            users_filtrados = [
-                u for u in users if "_ter" not in u and u not in usuarios_excluidos
-            ]
+                # Filtrar para seleção padrão (sem _ter e sem os nomes excluídos)
+                users_filtrados = [
+                    u for u in users if "_ter" not in u and u not in usuarios_excluidos
+                ]
 
-            selected_users = st.multiselect(
-                "Selecione os Analistas:",
-                options=users,
-                default=users_filtrados,
-                key="multiselect_ranking"
-            )
+                selected_users = st.multiselect(
+                    "Selecione os Analistas:",
+                    options=users,
+                    default=users_filtrados,
+                    key="multiselect_ranking_atualizacao"
+                )
 
-            # Calcular o ranking
-            styled_df_ranking = calcular_ranking(df_total, selected_users)
+                # Calcular o ranking
+                styled_df_ranking_atualizado = calcular_ranking_atualizacao(df_total, selected_users)
+                
+                # Exibir a tabela de ranking
+                st.dataframe(styled_df_ranking_atualizado, width=2000, hide_index=True)
+                
+            # Injetando CSS e JavaScript para aumentar o tamanho do modal
+            st.markdown("""
+                <style>
+                    div [tabindex="-1"] {
+                        width: 80% !important;
+                    }
+                </style>
+            """, unsafe_allow_html=True)
             
-            # Exibir a tabela de ranking
-            st.dataframe(styled_df_ranking, width=2000)
-            
-                # Injetando CSS e JavaScript para aumentar o tamanho do modal
-        st.markdown("""
-            <style>
-                div [tabindex="-1"] {
-                    width: 80% !important;
-                }
-            </style>
-        """, unsafe_allow_html=True)
+        with tab4:
+            with st.container(border=True):  
+                st.subheader("Ranking Pré-Cadastro")
+                
+                            # Selecione os usuários
+                users = df_total['USUÁRIO QUE CONCLUIU A TAREFA'].dropna().unique()
 
+                # Lista de usuários a serem excluídos da seleção padrão
+                usuarios_excluidos = [
+                    "viniciusgimenes_amil", "biancamaia", "biancabazolli", "bayrabraz",
+                    "barbaralopes_amil", "andrewcossi", "ingridvieira_amil", "beatrizromao_amil", "eloabernardo", "alexandredomingues", "sabrinalira"
+                ]
+
+                # Filtrar para seleção padrão (sem _ter e sem os nomes excluídos)
+                users_filtrados = [
+                    u for u in users if "_ter" not in u and u not in usuarios_excluidos
+                ]
+
+                selected_users = st.multiselect(
+                    "Selecione os Analistas:",
+                    options=users,
+                    default=users_filtrados,
+                    key="multiselect_ranking_cadastro_pre"
+                )
+
+                # Calcular o ranking
+                styled_df_ranking_pre_cadastro = calcular_ranking_cadastro_pre(df_total, selected_users)
+                
+                # Exibir a tabela de ranking
+                st.dataframe(styled_df_ranking_pre_cadastro, width=2000, hide_index=True)
+        
+        with tab5:
+            with st.container(border=True):  
+                st.subheader("Ranking Ofícios")
+                
+                            # Selecione os usuários
+                users = df_total['USUÁRIO QUE CONCLUIU A TAREFA'].dropna().unique()
+
+                # Lista de usuários a serem excluídos da seleção padrão
+                usuarios_excluidos = [
+                    "viniciusgimenes_amil", "biancamaia", "biancabazolli", "bayrabraz",
+                    "barbaralopes_amil", "andrewcossi", "ingridvieira_amil", "beatrizromao_amil", "eloabernardo", "alexandredomingues", "sabrinalira"
+                ]
+
+                # Filtrar para seleção padrão (sem _ter e sem os nomes excluídos)
+                users_filtrados = [
+                    u for u in users if "_ter" not in u and u not in usuarios_excluidos
+                ]
+
+                selected_users = st.multiselect(
+                    "Selecione os Analistas:",
+                    options=users,
+                    default=users_filtrados,
+                    key="multiselect_ranking_cadastro_oficios"
+                )
+
+                # Calcular o ranking
+                styled_df_ranking_cadastro_oficios = calcular_ranking_cadastro_oficios(df_total, selected_users)
+                
+                # Exibir a tabela de ranking
+                st.dataframe(styled_df_ranking_cadastro_oficios, width=2000, hide_index=True)
+                
+                    # Injetando CSS e JavaScript para aumentar o tamanho do modal
+            st.markdown("""
+                <style>
+                    div [tabindex="-1"] {
+                        width: 80% !important;
+                    }
+                </style>
+            """, unsafe_allow_html=True)
+
+        with tab6:
+            with st.container(border=True):  
+                st.subheader("Ranking Ofícios e Demais Órgãos")
+                
+                            # Selecione os usuários
+                users = df_total['USUÁRIO QUE CONCLUIU A TAREFA'].dropna().unique()
+
+                # Lista de usuários a serem excluídos da seleção padrão
+                usuarios_excluidos = [
+                    "viniciusgimenes_amil", "biancamaia", "biancabazolli", "bayrabraz",
+                    "barbaralopes_amil", "andrewcossi", "ingridvieira_amil", "beatrizromao_amil", "eloabernardo", "alexandredomingues", "sabrinalira"
+                ]
+
+                # Filtrar para seleção padrão (sem _ter e sem os nomes excluídos)
+                users_filtrados = [
+                    u for u in users if "_ter" not in u and u not in usuarios_excluidos
+                ]
+
+                selected_users = st.multiselect(
+                    "Selecione os Analistas:",
+                    options=users,
+                    default=users_filtrados,
+                    key="multiselect_ranking_cadastro_orgaos"
+                )
+
+                # Calcular o ranking
+                styled_df_ranking_cadastro_orgaos = calcular_ranking_cadastro_orgaos(df_total, selected_users)
+                
+                # Exibir a tabela de ranking
+                st.dataframe(styled_df_ranking_cadastro_orgaos, width=2000, hide_index=True)
+                
+                    # Injetando CSS e JavaScript para aumentar o tamanho do modal
+            st.markdown("""
+                <style>
+                    div [tabindex="-1"] {
+                        width: 80% !important;
+                    }
+                </style>
+            """, unsafe_allow_html=True)
+
+        with tab7:
+            with st.container(border=True):  
+                st.subheader("Ranking Auditoria")
+                
+                            # Selecione os usuários
+                users = df_total['USUÁRIO QUE CONCLUIU A TAREFA'].dropna().unique()
+
+                # Lista de usuários a serem excluídos da seleção padrão
+                usuarios_excluidos = [
+                    "viniciusgimenes_amil", "biancamaia", "bayrabraz",
+                    "barbaralopes_amil", "andrewcossi", "ingridvieira_amil", "beatrizromao_amil", "eloabernardo", "alexandredomingues", "sabrinalira"
+                ]
+
+                # Filtrar para seleção padrão (sem _ter e sem os nomes excluídos)
+                users_filtrados = [
+                    u for u in users if "_ter" not in u and u not in usuarios_excluidos
+                ]
+
+                selected_users = st.multiselect(
+                    "Selecione os Analistas:",
+                    options=users,
+                    default=users_filtrados,
+                    key="multiselect_ranking_auditoria"
+                )
+
+                # Calcular o ranking
+                styled_df_ranking_auditoria = calcular_ranking_auditoria(df_total, selected_users)
+                
+                # Exibir a tabela de ranking
+                st.dataframe(styled_df_ranking_auditoria, width=2000, hide_index=True)
+                
+                    # Injetando CSS e JavaScript para aumentar o tamanho do modal
+            st.markdown("""
+                <style>
+                    div [tabindex="-1"] {
+                        width: 80% !important;
+                    }
+                </style>
+            """, unsafe_allow_html=True)
+
+        with tab8:
+            with st.container(border=True):  
+                st.subheader("Ranking Distribuição")
+                
+                            # Selecione os usuários
+                users = df_total['USUÁRIO QUE CONCLUIU A TAREFA'].dropna().unique()
+
+                # Lista de usuários a serem excluídos da seleção padrão
+                usuarios_excluidos = [
+                    "viniciusgimenes_amil", "biancamaia", "bayrabraz",
+                    "barbaralopes_amil", "andrewcossi", "beatrizromao_amil", "eloabernardo", "alexandredomingues", "sabrinalira"
+                ]
+
+                # Filtrar para seleção padrão (sem _ter e sem os nomes excluídos)
+                users_filtrados = [
+                    u for u in users if "_ter" not in u and u not in usuarios_excluidos
+                ]
+
+                selected_users = st.multiselect(
+                    "Selecione os Analistas:",
+                    options=users,
+                    default=users_filtrados,
+                    key="multiselect_ranking_distribuicao"
+                )
+
+                # Calcular o ranking
+                styled_df_ranking_distribuicao = calcular_ranking_distribuicao(df_total, selected_users)
+                
+                # Exibir a tabela de ranking
+                st.dataframe(styled_df_ranking_distribuicao, width=2000, hide_index=True)
+                
+                    # Injetando CSS e JavaScript para aumentar o tamanho do modal
+            st.markdown("""
+                <style>
+                    div [tabindex="-1"] {
+                        width: 80% !important;
+                    }
+                </style>
+            """, unsafe_allow_html=True)
+                        
         # Função para exibir o Power BI no modal
         @st.dialog("BI - Qualidade AMIL", width="large")
         def abrir_bi():

@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relatório de Produtividade Finch</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .report-container {
+            width: 100%;
+            max-width: 1200px;
+        }
+        .report-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .report-header img {
+            max-width: 150px;
+            margin-bottom: 10px;
+        }
+        .report-header h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #FF571C;
+            margin: 0 0 5px 0;
+        }
+        .report-header p {
+            font-size: 1rem;
+            color: #555;
+            margin: 0;
+        }
+        .bento-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            width: 100%;
+        }
+        .bento-item {
+            background-color: #ffffff;
+            border-radius: 16px;
+            padding: 25px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+            transition: transform 0.2s ease-in-out;
+            display: flex;
+            flex-direction: column;
+        }
+        .bento-item:hover {
+            transform: translateY(-5px);
+        }
+        .bento-item h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #FF571C;
+            margin: 0 0 15px 0;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }
+        .bento-item h2 .icon {
+            margin-right: 8px;
+            font-size: 1.3em;
+        }
+        .metric-item {
+            margin-bottom: 12px;
+        }
+        .metric-item .label {
+            font-size: 0.85rem;
+            color: #666;
+            display: block;
+            margin-bottom: 4px;
+        }
+        .metric-item .value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #2c3e50;
+        }
+        .metric-item .value.small {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        .rank-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            flex-grow: 1;
+        }
+        .rank-item {
+            display: grid;
+            grid-template-columns: auto 1fr auto auto;
+            gap: 10px;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 0.9rem;
+        }
+        .rank-item:last-child {
+            border-bottom: none;
+        }
+        .rank-position {
+            font-weight: 700;
+            color: #FF571C;
+        }
+        .rank-name {
+            font-weight: 500;
+        }
+        .rank-metric {
+            font-size: 0.85rem;
+            color: #555;
+            background-color: #f0f2f5;
+            padding: 3px 6px;
+            border-radius: 4px;
+        }
+        .rank-tmo {
+            font-size: 0.85rem;
+            color: #555;
+        }
+        .col-span-2 {
+            grid-column: span 2;
+        }
+        .row-span-2 {
+            grid-row: span 2;
+        }
+        .tmo-bar-container {
+            width: 100%;
+            background-color: #e0e0e0;
+            border-radius: 4px;
+            height: 10px;
+            margin-top: 5px;
+        }
+        .tmo-bar {
+            background-color: #FF571C;
+            height: 100%;
+            border-radius: 4px;
+        }
+        @media (max-width: 768px) {
+            .bento-grid {
+                grid-template-columns: 1fr;
+            }
+            .report-header h1 {
+                font-size: 1.5rem;
+            }
+            .bento-item {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="report-container">
+        <div class="report-header">
+            <img src="https://finchsolucoes.com.br/img/1d8d2f6c-3a6e-4e2e-8a7a-3f9b9b3e0d5d.png" alt="Finch Logo">
+            <h1>Relatório de Performance da Equipe</h1>
+            <p>Período: {periodo_str}</p>
+        </div>
+
+        <div class="bento-grid">
+            <div class="bento-item col-span-2 row-span-2">
+                <h2><span class="icon">🏆</span>Ranking de Analistas (Top Cadastros)</h2>
+                <div class="rank-list">
+                    {ranking_html if ranking_analistas else "<p>Nenhum dado de ranking disponível.</p>"}
+                </div>
+            </div>
+            <div class="bento-item">
+                <h2><span class="icon">⏱️</span>TMO da Equipe</h2>
+                <div class="metric-item">
+                    <span class="label">TMO Cadastro</span>
+                    <span class="value">{format_timedelta_for_html(tmo_equipe.get('cadastro'))}</span>
+                </div>
+                <div class="metric-item">
+                    <span class="label">TMO Atualização</span>
+                    <span class="value">{format_timedelta_for_html(tmo_equipe.get('atualizacao'))}</span>
+                </div>
+                <div class="metric-item">
+                    <span class="label">TMO Auditoria</span>
+                    <span class="value">{format_timedelta_for_html(tmo_equipe.get('auditoria', pd.Timedelta(seconds=0)))}</span>
+                </div>
+            </div>
+            <div class="bento-item">
+                <h2><span class="icon">☕</span>Tempo Ocioso (Médio)</h2>
+                <div class="metric-item">
+                    <span class="label">Ociosidade Média Diária</span>
+                    <span class="value">{format_timedelta_for_html(tempo_ocioso_medio)}</span>
+                </div>
+                <p style="font-size:0.8rem; color:#777; margin-top:auto;">Considera o tempo entre tarefas dentro de um limite.</p>
+            </div>
+            <div class="bento-item">
+                <h2><span class="icon">🚀</span>Dia de Pico (Cadastros)</h2>
+                <div class="metric-item">
+                    <span class="label">Data do Pico</span>
+                    <span class="value small">{dia_pico['data']}</span>
+                </div>
+                <div class="metric-item">
+                    <span class="label">Quantidade no Pico</span>
+                    <span class="value small">{dia_pico['quantidade']}</span>
+                </div>
+            </div>
+            <div class="bento-item">
+                <h2><span class="icon">⭐</span>Destaque Individual</h2>
+                <p style="font-size:0.9rem; margin-bottom:5px;"><strong>Melhor TMO Cadastro:</strong> Analista X (00:12:30)</p>
+                <p style="font-size:0.9rem;"><strong>Mais Atualizações:</strong> Analista Y (150)</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
