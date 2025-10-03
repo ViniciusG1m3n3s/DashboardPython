@@ -1219,25 +1219,6 @@ def calcular_tmo_por_carteira(df):
         tmo_auditoria['TMO Atualização'] = None
         tmo_por_carteira = pd.concat([tmo_por_carteira, tmo_auditoria], ignore_index=True)
 
-        # --- NOVO BLOCO: TRIAGEM (independente da finalização) ---
-    df_triagem = df[df['FILA'].str.contains('TRIAGEM', case=False, na=False)]
-
-    if not df_triagem.empty:
-        tmo_triagem = df_triagem.groupby('FILA').agg(
-            Quantidade=('FILA', 'size'),
-            TMO_Cadastro=('TEMPO MÉDIO OPERACIONAL', 'mean')
-        ).reset_index()
-        tmo_triagem.rename(columns={'TMO_Cadastro': 'TMO Cadastro'}, inplace=True)
-        tmo_triagem['Cadastrado'] = None
-        tmo_triagem['Atualizado'] = None
-        tmo_triagem['Fora do Escopo'] = None
-        tmo_triagem['TMO Atualização'] = None
-        tmo_triagem['TMO Fora do Escopo'] = None
-
-        # Reordenar colunas para compatibilidade
-        tmo_triagem = tmo_triagem[['FILA', 'Quantidade', 'Cadastrado', 'Atualizado', 'Fora do Escopo', 'TMO Cadastro', 'TMO Atualização', 'TMO Fora do Escopo']]
-        tmo_por_carteira = pd.concat([tmo_por_carteira, tmo_triagem], ignore_index=True)
-
     # Calcular 'Fora do Escopo'
     fora_do_escopo_contagem = df_unique.groupby('FILA').apply(
         lambda x: x.shape[0] - (x['FINALIZAÇÃO'] == 'CADASTRADO').sum() - (x['FINALIZAÇÃO'] == 'ATUALIZADO').sum()
@@ -2818,5 +2799,6 @@ def exibir_grafico_desvios_auditoria(df):
     with st.container(border=True):
         st.metric(label="Desvio Mais Frequente", value=desvio_top['Desvio'], delta=f"{desvio_top['Frequência']} ocorrências")
         
+
 
 
